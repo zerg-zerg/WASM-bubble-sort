@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="./node/sort.js"></script>
+    <script src="./es/sortLib.js"></script>
+    <script>
+        const MAX_NUM = 80000;
+        var Module = {
+            onRuntimeInitialized: function () {
+                log.value += '\nWASM Module inited!';
+            },
+        };
+        const runAdd = async () => {
+            const response = await fetch('./simple/funcs.wasm');
+            const bytes = await response.arrayBuffer();
+            const {instance} = await WebAssembly.instantiate(bytes);
+
+            console.log('The answer is: ' + instance.exports.add(1, 2));
+
+            const log = document.getElementById('log');
+            log.value += '\nThe answer is: ' + instance.exports.add(1, 2);
+        };
+
+        const simpleSort = () => {
+            const nums = Array.from(Array(MAX_NUM).keys()).reverse();
+            const start = performance.now();
+            const res = bubbleSort([...nums]);
+            //console.log('End in, (ms):', nums, res, performance.now() - start);
+            log.value += '\nJS sort, (ms):' +  Math.round((performance.now() - start));
+        };
+
+        const runWasmBubbleSort = (short = false) => {
+            var arr = short ? [15, 8, 2, 6, 3, 1] : Array.from(Array(MAX_NUM).keys()).reverse();
+
+            const typedArray = Int32Array.from(arr);
+            const buffer = _malloc(
+                typedArray.length * typedArray.BYTES_PER_ELEMENT
+            );
+            Module.HEAP32.set(typedArray, buffer >> 2);
+
+            const start = performance.now();
+            _bubbleSort(buffer, arr.length);
+            log.value += `\nWASM ${short ? 'short' : ''} sort, (ms):` + Math.round((performance.now() - start));
+
+            let mem_view = Module.HEAP32.subarray(buffer >> 2, (buffer >> 2) + arr.length);
+
+            if (short) {
+                log.value += '\n БЫЛО:' + JSON.stringify(arr);
+                log.value += '\n СТАЛО:' + JSON.stringify(Array.from(mem_view));
+            }
+
+            _free(buffer);
+        }
+    </script>
+</head>
+
+<body>
+    <button onclick="runAdd()">Add</button>
+    <button onclick="simpleSort()">Simple sort</button>
+    <button onclick="runWasmBubbleSort(true)">wasm sort short</button>
+    <button onclick="runWasmBubbleSort()">wasm sort</button>
+    <br />
+    <br />
+    <textarea id="log" rows="20" cols="100"></textarea>
+</body>
+
+</html>
